@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       repo:
-        description: "Repo a compilar (owner/nombre), ej: adro0303/mcqueens-web"
+        description: "Repo a compilar (owner/nombre)"
         required: true
       ref:
         description: "Rama, tag o commit"
         required: false
         default: "main"
       app_dir:
-        description: "Carpeta dentro del repo donde esta el proyecto Expo (usa . si esta en la raiz)"
+        description: "Carpeta dentro del repo donde esta el proyecto Expo"
         required: false
         default: "."
       ipa_name:
@@ -22,10 +22,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 45
-
-    permissions:
-      contents: read
+    timeout-minutes: 60
 
     steps:
       - name: Checkout target project
@@ -35,67 +32,57 @@ jobs:
           ref: ${{ inputs.ref }}
           path: target
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: Select latest available Xcode
-        run: |
-          LATEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -n1)
-          sudo xcode-select -s "$LATEST"
-          xcodebuild -version
-
-      - name: Install JS dependencies
+      - name: Install dependencies
         working-directory: target/${{ inputs.app_dir }}
         run: npm install
 
-      - name: Prebuild native iOS project
+      - name: Expo prebuild
         working-directory: target/${{ inputs.app_dir }}
-        run: npx expo prebuild --platform ios --non-interactive
+        env:
+          CI: 1
+        run: npx expo prebuild --platform ios
 
-      - name: Install CocoaPods dependencies
+      - name: Install Pods
         working-directory: target/${{ inputs.app_dir }}/ios
         run: pod install
 
-      - name: Find workspace and scheme
-        id: target_scheme
+      - name: Find workspace
+        id: workspace
         working-directory: target/${{ inputs.app_dir }}
         run: |
-          WORKSPACE=$(ls -d ios/*.xcworkspace | head -n1)
-          PROJECT=$(ls -d ios/*.xcodeproj | head -n1)
-          SCHEME=$(basename "$PROJECT" .xcodeproj)
+          WORKSPACE=$(find ios -name "*.xcworkspace" | head -n 1)
+          SCHEME=$(basename $(find ios -name "*.xcodeproj" | head -n 1) .xcodeproj)
+          echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
 
-          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-
-      - name: Build (unsigned)
+      - name: Build iOS
         working-directory: target/${{ inputs.app_dir }}
         run: |
           xcodebuild \
-            -workspace "${{ steps.target_scheme.outputs.workspace }}" \
-            -scheme "${{ steps.target_scheme.outputs.scheme }}" \
+            -workspace "${{ steps.workspace.outputs.workspace }}" \
+            -scheme "${{ steps.workspace.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath build/DerivedData \
+            -destination generic/platform=iOS \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
             build
 
-      - name: Package unsigned IPA
+      - name: Create IPA
         working-directory: target/${{ inputs.app_dir }}
         run: |
-          APP_PATH=$(find build/DerivedData/Build/Products -name "*.app" -type d | head -n1)
-
-          mkdir -p build/Payload
-          cp -r "$APP_PATH" build/Payload/
-
-          cd build
+          mkdir Payload
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" | head -n 1)
+          cp -R "$APP" Payload
           zip -r "${{ inputs.ipa_name }}.ipa" Payload
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.ipa_name }}
-          path: target/${{ inputs.app_dir }}/build/${{ inputs.ipa_name }}.ipa
-          retention-days: 14
+          path: "**/${{ inputs.ipa_name }}.ipa"
