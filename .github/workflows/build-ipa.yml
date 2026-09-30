@@ -23,13 +23,16 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 45
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout target project
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repo }}
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
           path: target
 
       - uses: actions/setup-node@v4
@@ -38,7 +41,6 @@ jobs:
 
       - name: Select latest available Xcode
         run: |
-          ls /Applications | grep -i Xcode
           LATEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -n1)
           sudo xcode-select -s "$LATEST"
           xcodebuild -version
@@ -62,11 +64,9 @@ jobs:
           WORKSPACE=$(ls -d ios/*.xcworkspace | head -n1)
           PROJECT=$(ls -d ios/*.xcodeproj | head -n1)
           SCHEME=$(basename "$PROJECT" .xcodeproj)
+
           echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
           echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          echo "Workspace: $WORKSPACE / Scheme: $SCHEME"
-          echo "All schemes in workspace (for reference):"
-          xcodebuild -list -workspace "$WORKSPACE"
 
       - name: Build (unsigned)
         working-directory: target/${{ inputs.app_dir }}
@@ -81,23 +81,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_ENTITLEMENTS="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             build
 
       - name: Package unsigned IPA
         working-directory: target/${{ inputs.app_dir }}
         run: |
-          echo "Build products:"
-          find build/DerivedData/Build/Products -maxdepth 2
-          APP_PATH=$(find build/DerivedData/Build/Products -maxdepth 2 -name "*.app" -type d | head -n1)
-          if [ -z "$APP_PATH" ]; then
-            echo "No .app bundle found in build products"
-            exit 1
-          fi
-          echo "Found app: $APP_PATH"
+          APP_PATH=$(find build/DerivedData/Build/Products -name "*.app" -type d | head -n1)
+
           mkdir -p build/Payload
           cp -r "$APP_PATH" build/Payload/
+
           cd build
           zip -r "${{ inputs.ipa_name }}.ipa" Payload
 
