@@ -22,7 +22,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout target project
@@ -37,19 +37,31 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
       - name: Install dependencies
         working-directory: target/${{ inputs.app_dir }}
-        run: npm install
+        run: npm ci || npm install
 
-      - name: Expo prebuild
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Clean Expo Prebuild
         working-directory: target/${{ inputs.app_dir }}
         env:
           CI: 1
-        run: npx expo prebuild --platform ios
+        run: |
+          rm -rf ios
+          npx expo prebuild --platform ios --clean
 
       - name: Install Pods
         working-directory: target/${{ inputs.app_dir }}/ios
-        run: pod install
+        run: |
+          pod repo update
+          pod install --repo-update
 
       - name: Find workspace
         id: workspace
@@ -57,8 +69,12 @@ jobs:
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" | head -n 1)
           SCHEME=$(basename $(find ios -name "*.xcodeproj" | head -n 1) .xcodeproj)
+
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
 
       - name: Build iOS
         working-directory: target/${{ inputs.app_dir }}
@@ -71,18 +87,24 @@ jobs:
             -destination generic/platform=iOS \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            build
+            clean build
 
       - name: Create IPA
         working-directory: target/${{ inputs.app_dir }}
         run: |
-          mkdir Payload
+          mkdir -p Payload
+
           APP=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" | head -n 1)
-          cp -R "$APP" Payload
+
+          echo "APP FOUND:"
+          echo "$APP"
+
+          cp -R "$APP" Payload/
+
           zip -r "${{ inputs.ipa_name }}.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.ipa_name }}
-          path: "**/${{ inputs.ipa_name }}.ipa"
+          path: target/${{ inputs.app_dir }}/${{ inputs.ipa_name }}.ipa
