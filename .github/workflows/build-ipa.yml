@@ -1,13 +1,80 @@
-      - name: Build iOS
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repo"
+        required: true
+      ref:
+        description: "Branch"
+        required: false
+        default: "master"
+      app_dir:
+        description: "App Dir"
+        required: false
+        default: "."
+      ipa_name:
+        description: "IPA Name"
+        required: false
+        default: "Wise"
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout target project
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          path: target
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: target/${{ inputs.app_dir }}
+        run: npm install
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Expo prebuild
+        working-directory: target/${{ inputs.app_dir }}
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: target/${{ inputs.app_dir }}/ios
+        run: |
+          pod deintegrate
+          pod install --repo-update
+
+      - name: Build
         working-directory: target/${{ inputs.app_dir }}/ios
         run: |
           xcodebuild \
-            -workspace "${{ steps.workspace.outputs.workspace }}" \
-            -scheme "${{ steps.workspace.outputs.scheme }}" \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            ONLY_ACTIVE_ARCH=NO \
-            build
+          -workspace Wise.xcworkspace \
+          -scheme Wise \
+          -configuration Release \
+          -sdk iphoneos \
+          -destination generic/platform=iOS \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          build
+
+      - name: Create IPA
+        working-directory: target/${{ inputs.app_dir }}
+        run: |
+          mkdir Payload
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" | head -n 1)
+          cp -R "$APP" Payload
+          zip -r Wise.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wise-IPA
+          path: target/${{ inputs.app_dir }}/Wise.ipa
