@@ -110,6 +110,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.ipa_name }}-IPA
-          path: target/${{ inputs.app_dir }}/ios/${{ inputs.ipa_name }}.ipa
+          path: target/ios/${{ inputs.ipa_name }}.ipa
           if-no-files-found: error
           retention-days: 14
