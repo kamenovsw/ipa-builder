@@ -1,3 +1,4 @@
+```yaml
 name: Build unsigned iOS IPA
 
 on:
@@ -20,7 +21,7 @@ on:
       ipa_name:
         description: "Nome do IPA"
         required: false
-        default: "SharkBot"
+        default: "SyncPay"
         type: string
 
 jobs:
@@ -34,7 +35,7 @@ jobs:
           repository: ${{ inputs.repo }}
           ref: ${{ inputs.ref }}
           path: target
-          token: ${{ github.token }}
+          token: ${{ secrets.SYNC_PAY_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -110,6 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.ipa_name }}-IPA
-          path: target/ios/${{ inputs.ipa_name }}.ipa
+          path: target/${{ inputs.app_dir }}/ios/${{ inputs.ipa_name }}.ipa
           if-no-files-found: error
           retention-days: 14
+```
