@@ -1,4 +1,3 @@
-```yaml
 name: Build unsigned iOS IPA
 
 on:
@@ -27,7 +26,6 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
       - name: Checkout target project
         uses: actions/checkout@v4
@@ -60,58 +58,11 @@ jobs:
         shell: bash
         run: |
           set -e
-
           WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" -print -quit)
-
           if [ -z "$WORKSPACE" ]; then
             echo "Erro: nenhum workspace Xcode encontrado."
             exit 1
           fi
-
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-
           echo "Workspace: $WORKSPACE"
-          echo "Scheme: $SCHEME"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
-
-      - name: Create unsigned IPA
-        working-directory: target/${{ inputs.app_dir }}/ios
-        shell: bash
-        env:
-          IPA_NAME: ${{ inputs.ipa_name }}
-          SCHEME: ${{ steps.build.outputs.scheme }}
-        run: |
-          set -e
-
-          APP="build/Build/Products/Release-iphoneos/${SCHEME}.app"
-
-          if [ ! -d "$APP" ]; then
-            echo "Erro: aplicativo compilado nao encontrado: $APP"
-            find build -name "*.app" -maxdepth 8
-            exit 1
-          fi
-
-          mkdir -p Payload
-          cp -R "$APP" Payload/
-          zip -r "${IPA_NAME}.ipa" Payload
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.ipa_name }}-IPA
-          path: target/${{ inputs.app_dir }}/ios/${{ inputs.ipa_name }}.ipa
-          if-no-files-found: error
-          retention-days: 14
-```
+          echo "Scheme
