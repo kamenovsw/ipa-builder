@@ -34,7 +34,7 @@ jobs:
           repository: ${{ inputs.repo }}
           ref: ${{ inputs.ref }}
           path: target
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          token: ${{ github.token }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
